@@ -8,7 +8,7 @@ import (
 var con_cf *ItemCf
 
 func TestGetItemCF(t *testing.T) {
-	t.Skip()
+
 	cf := GetItemCF()
 	if !IsExist(cf.DataPath) {
 		t.Errorf("数据文件:%s 不存在", cf.DataPath)
@@ -28,7 +28,7 @@ func TestGetItemCF(t *testing.T) {
 }
 
 func TestItemCFTrain(t *testing.T) {
-	t.Skip()
+
 	con_cf = GetItemCF()
 	t.Run("loadData", testLoadData)        //读取文件分成训练集合，和测试集合
 	t.Run("calculate", testGenerateMarix)  //生成相似度矩阵

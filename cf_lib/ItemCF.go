@@ -29,6 +29,7 @@ type ItemCf struct {
 	TestSet        map[string]map[string]float64 //测试集合
 	SimilierMatrix map[string]map[string]float64 //相似度矩阵
 	TrainNum       int //训练集总数据条数
+	TestNum        int //训练集总数据条数
 	//配置属性
 	DataPath       string  // 数据文件路径
 	SaveTestPath   string  // 测试集存储路径
@@ -53,6 +54,8 @@ func GetItemCF() *ItemCf {
 		SimilierMatrix: make(map[string]map[string]float64),
 		SimMovieNum:    20,
 		RecMovieNum:    10,
+		TrainNum:       0,
+		TestNum:        0,
 	}
 	fmt.Println("配置初始化完成")
 	return &cf
@@ -73,7 +76,15 @@ func (cf *ItemCf) DoEvaluate() {
 
 //读取文件分成训练集合，和测试集合
 func (cf *ItemCf) LoadData() {
-	//
+	cf.InitMaxUid()
+	cf.InitDivedSet()
+
+	cf.InitCalculateSet()
+
+	cf.AdjustCalculateSet() //修正余弦相似度
+}
+//取得最大用户id
+func  (cf *ItemCf) InitMaxUid()  {
 	fs, err := os.Open(cf.DataPath)
 	if err != nil {
 		log.Fatalf("无法打开数据文件: %+v", err)
@@ -95,13 +106,16 @@ func (cf *ItemCf) LoadData() {
 			cf.MaxUserId = uid
 		}
 	}
-	//重置文件指针
-	fs.Seek(0, 0)
-	//丢弃首行
+}
+//生成测试数据集和训练数据集
+func (cf *ItemCf)InitDivedSet()  {
+	fs, err := os.Open(cf.DataPath)
+	if err != nil {
+		log.Fatalf("无法打开数据文件: %+v", err)
+	}
+	defer fs.Close()
+	r := csv.NewReader(fs)
 	r.Read()
-	//把数据集合，分成测试数据集，和训练数据集
-
-	trainNum, testNum := 0, 0
 	rand.Seed(time.Now().UnixNano())
 	for {
 		row, err := r.Read()
@@ -113,27 +127,52 @@ func (cf *ItemCf) LoadData() {
 		}
 		score, _ := strconv.ParseFloat(row[2], 64)
 		if rand.Float64() <= cf.TrainSetPecent {
-			trainNum++
-			if _, ok := cf.TrainSet[row[1]]; !ok {
-				cf.TrainSet[row[1]] = make([]float64, cf.MaxUserId, cf.MaxUserId)
-			}
-			var uid, _ = strconv.Atoi(row[0])
-			cf.TrainSet[row[1]][uid-1] = float64(score)
-
+			cf.TestNum++
 			if _, ok := cf.TrainSetRec[row[0]]; !ok {
 				cf.TrainSetRec[row[0]] = make(map[string]float64)
 			}
 			cf.TrainSetRec[row[0]][row[1]] = float64(score)
 		} else {
-			testNum++
+			cf.TrainNum++
 			if _, ok := cf.TestSet[row[0]]; !ok {
 				cf.TestSet[row[0]] = make(map[string]float64)
 			}
 			cf.TestSet[row[0]][row[1]] = float64(score)
 		}
 	}
-	cf.TrainNum = trainNum
-	fmt.Printf("数据分组完成，训练集包含数据%d条,测试集包含数据%d条 \n", trainNum, testNum)
+	fmt.Printf("数据分组完成，训练集包含数据%d条,测试集包含数据%d条 \n", cf.TrainNum, cf.TestNum)
+}
+
+
+
+func (cf *ItemCf)InitCalculateSet()  {
+	for uid, movieMap :=range cf.TrainSetRec{
+		for movieId ,rating := range movieMap {
+			if _, ok := cf.TrainSet[movieId]; !ok {
+				cf.TrainSet[movieId] = make([]float64, cf.MaxUserId, cf.MaxUserId)
+			}
+			uidInt, _ := strconv.Atoi(uid)
+			//余弦相似度
+			cf.TrainSet[movieId][uidInt-1] = rating
+		}
+	}
+}
+
+//相似度仅考虑向量维度方向上的相似而没考虑到各个维度的量纲的差异性，所以在计算相似度的时候，做了每个维度减去均值的修正操作
+func (cf *ItemCf)AdjustCalculateSet()  {
+	for movieId, userMap :=range cf.TrainSet{
+		totalRating := 0.0
+		for _,rating := range userMap{
+			totalRating += rating
+		}
+		AverageRating := totalRating/float64(len(userMap))
+		for UserId,rating:= range userMap{
+			if rating != 0 {
+				cf.TrainSet[movieId][UserId] = rating - AverageRating
+			}
+		}
+	}
+	
 }
 
 //生成相似度矩阵
