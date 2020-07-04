@@ -62,13 +62,13 @@ func GetItemCF() *ItemCf {
 }
 
 //--业务函数
-//计算数据
+//计算入口函数
 func (cf *ItemCf) DoCalculate() {
 	cf.LoadData()        //读取文件分成训练集合，和测试集合
 	cf.GenerateMarix()   //生成相似度矩阵
 	cf.SaveTrainedData() //持久化数据
 }
-
+//测试入口函数
 func (cf *ItemCf) DoEvaluate() {
 	cf.LoadTrainedData()
 	cf.EvaluateData()
@@ -144,7 +144,7 @@ func (cf *ItemCf)InitDivedSet()  {
 }
 
 
-
+//初始化计算用，向量列表
 func (cf *ItemCf)InitCalculateSet()  {
 	for uid, movieMap :=range cf.TrainSetRec{
 		for movieId ,rating := range movieMap {
